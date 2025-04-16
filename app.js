@@ -13,50 +13,6 @@ document.addEventListener('DOMContentLoaded', function() {
     setupForm();
 });
 
-// Adicione isso no DOMContentLoaded
-document.getElementById('newProjectForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    
-    const projectName = document.getElementById('projectName').value.trim();
-    const spreadsheetUrl = document.getElementById('spreadsheetUrl').value.trim();
-    
-    if (!projectName || !spreadsheetUrl) {
-        showAlert('Preencha todos os campos!', 'danger');
-        return;
-    }
-
-    const newProject = {
-        id: 'gate-' + Date.now(),
-        name: projectName,
-        url: spreadsheetUrl,
-        status: 'active',
-        createdAt: new Date().toISOString(),
-        requestsToday: 0,
-        totalRequests: 0,
-        level: 1
-    };
-
-    // DEBUG: Mostra no console antes de salvar
-    console.log("Criando projeto:", newProject);
-    
-    saveProject(newProject);
-    showAlert('Portal criado com sucesso!', 'success');
-    
-    // Redireciona após 1 segundo
-    setTimeout(() => {
-        window.location.href = `dashboard.html?project=${newProject.id}`;
-    }, 1000);
-});
-
-// Função saveProject corrigida
-function saveProject(project) {
-    let projects = JSON.parse(localStorage.getItem('shadowGateProjects')) || [];
-    projects.push(project);
-    localStorage.setItem('shadowGateProjects', JSON.stringify(projects));
-    console.log("Projeto salvo:", project); // DEBUG
-}
-
-// Carregar projetos
 function loadProjects() {
     const container = document.getElementById('projectsContainer');
     const noProjects = document.getElementById('noProjects');
@@ -99,7 +55,6 @@ function loadProjects() {
     });
 }
 
-// Configurar formulário
 function setupForm() {
     document.getElementById('newProjectForm').addEventListener('submit', async function(e) {
         e.preventDefault();
@@ -129,7 +84,6 @@ function setupForm() {
     });
 }
 
-// Gerar dados de atividade aleatórios
 function generateActivityData() {
     return {
         '7d': Array.from({length: 7}, () => Math.floor(Math.random() * 50) + 10),
@@ -138,7 +92,6 @@ function generateActivityData() {
     };
 }
 
-// Salvar projeto
 async function saveProject(project) {
     let projects = JSON.parse(localStorage.getItem('shadowGateProjects')) || [];
     projects.push(project);
@@ -146,7 +99,6 @@ async function saveProject(project) {
     await updateServiceWorkerCache();
 }
 
-// Atualizar cache do Service Worker
 async function updateServiceWorkerCache() {
     if ('caches' in window) {
         const cache = await caches.open('shadow-gate-data');
@@ -155,7 +107,6 @@ async function updateServiceWorkerCache() {
     }
 }
 
-// Mostrar alerta
 function showAlert(message, type) {
     const alert = document.createElement('div');
     alert.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg text-white font-semibold tracking-wider z-50 ${
