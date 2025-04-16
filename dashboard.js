@@ -1,5 +1,4 @@
 document.addEventListener('DOMContentLoaded', function() {
-    // Carregar dados do projeto
     const projectId = getProjectIdFromUrl();
     const project = loadProject(projectId);
     
@@ -9,24 +8,15 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
 
-    // Atualizar UI com dados do projeto
     updateProjectUI(project);
-
-    // Inicializar gráfico
     initUsageChart(project);
-
-    // Configurar abas
     setupTabs();
-
-    // Configurar botões de copiar
     setupCopyButtons();
 
-    // Configurar botão de voltar
     document.getElementById('backButton').addEventListener('click', function() {
         window.location.href = 'home.html';
     });
 
-    // Configurar botões de timeframe
     setupTimeframeButtons();
 });
 
@@ -41,21 +31,21 @@ function loadProject(projectId) {
 }
 
 function updateProjectUI(project) {
-    // Informações básicas
     document.getElementById('gateName').textContent = project.name;
     document.getElementById('gateId').textContent = project.id;
     document.getElementById('gateCreated').textContent = formatDate(project.createdAt);
     document.getElementById('apiEndpoint').textContent = `${window.location.origin}/api/${project.id}`;
     document.getElementById('spreadsheetUrl').textContent = project.url;
     
-    // Estatísticas
+    // Atualizar snippets de código
+    document.querySelectorAll('#snippetProjectId, #snippetProjectId2').forEach(el => {
+        el.textContent = project.id;
+    });
+    
     document.getElementById('dailyRequests').textContent = project.requestsToday || 0;
     document.getElementById('gateLevel').textContent = project.level || 1;
     
-    // Barra de progresso
     updateLevelProgress(project);
-    
-    // Status do gate
     updateGateStatus(project);
 }
 
@@ -68,7 +58,6 @@ function updateLevelProgress(project) {
     document.getElementById('requestsToNextLevel').textContent = 
         Math.max(0, requestsNeeded - (project.totalRequests || 0));
     
-    // Atualizar barra de requests diários
     const dailyProgress = Math.min(100, (project.requestsToday || 0) / 10);
     document.querySelector('.gate-card:nth-child(2) .h-1.bg-blue-500').style.width = `${dailyProgress}%`;
 }
@@ -176,10 +165,16 @@ function setupTabs() {
 }
 
 function setupCopyButtons() {
-    document.querySelectorAll('.copy-button').forEach(button => {
+    document.querySelectorAll('.copy-button, .copy-snippet').forEach(button => {
         button.addEventListener('click', function() {
-            const text = this.previousElementSibling.textContent;
-            navigator.clipboard.writeText(text).then(() => {
+            let textToCopy;
+            if (this.classList.contains('copy-snippet')) {
+                textToCopy = this.parentElement.querySelector('pre').textContent;
+            } else {
+                textToCopy = this.previousElementSibling.textContent;
+            }
+            
+            navigator.clipboard.writeText(textToCopy).then(() => {
                 const icon = this.innerHTML;
                 this.innerHTML = '<i class="bi bi-check2 text-green-400"></i>';
                 setTimeout(() => {
