@@ -1,16 +1,17 @@
-document.addEventListener('DOMContentLoaded', function() {
-    // Registrar Service Worker
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js', { scope: '/' })
-            .then(registration => {
-                console.log('SW registrado:', registration.scope);
-                return updateServiceWorkerCache();
-            })
-            .catch(err => console.error('Falha no SW:', err));
-    }
+document.addEventListener('DOMContentLoaded', async function() {
+    const supabaseUrl = 'https://nwoswxbtlquiekyangbs.supabase.co';
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im53b3N3eGJ0bHF1aWVreWFuZ2JzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ3ODEwMjcsImV4cCI6MjA2MDM1NzAyN30.KarBv9AopQpldzGPamlj3zu9eScKltKKHH2JJblpoCE';
 
-    loadProjects();
-    setupForm();
+    try {
+        const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+        showAlert('Conexão com o Supabase estabelecida com sucesso!', 'success');
+        window.supabase = supabase;
+        await loadProjects();
+        setupForm();
+    } catch (error) {
+        console.error('Erro ao conectar com o Supabase:', error);
+        showAlert('Erro ao conectar com o Supabase. Verifique as credenciais.', 'danger');
+    }
 });
 
 function loadProjects() {
