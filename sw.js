@@ -142,10 +142,9 @@ function createJsonResponse(data, status = 200) {
             'Access-Control-Allow-Origin': '*',
             'X-ShadowGate-Version': '1.0'
         }
-    });
+    };
 }
 
-// Listen for messages from the client
 self.addEventListener('message', (event) => {
     if (event.data.type === 'SYNC_PROJECTS') {
         caches.open(DATA_CACHE)
