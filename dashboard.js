@@ -1,86 +1,109 @@
-// Variáveis globais
-let currentProject;
-let usageChart;
-
 document.addEventListener('DOMContentLoaded', function() {
+    // Carregar dados do projeto
     const projectId = getProjectIdFromUrl();
-    if (!projectId) {
-        redirectToHome();
+    const project = loadProject(projectId);
+    
+    if (!project) {
+        showAlert('Gate not found! Redirecting...', 'danger');
+        setTimeout(() => window.location.href = 'home.html', 2000);
         return;
     }
 
-    loadProject(projectId);
-    setupUI();
-    setupEventListeners();
+    // Atualizar UI com dados do projeto
+    updateProjectUI(project);
+
+    // Inicializar gráfico
+    initUsageChart(project);
+
+    // Configurar abas
+    setupTabs();
+
+    // Configurar botões de copiar
+    setupCopyButtons();
+
+    // Configurar botão de voltar
+    document.getElementById('backButton').addEventListener('click', function() {
+        window.location.href = 'home.html';
+    });
+
+    // Configurar botões de timeframe
+    setupTimeframeButtons();
 });
 
-// Carregar projeto
-async function loadProject(projectId) {
-    try {
-        // Tentar buscar da API primeiro
-        const response = await fetch(`/${projectId}`);
-        if (response.ok) {
-            currentProject = await response.json();
-        } else {
-            // Fallback para localStorage
-            const projects = JSON.parse(localStorage.getItem('shadowGateProjects')) || [];
-            currentProject = projects.find(p => p.id === projectId);
-        }
+function getProjectIdFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('project');
+}
 
-        if (!currentProject) {
-            throw new Error('Project not found');
-        }
+function loadProject(projectId) {
+    const projects = JSON.parse(localStorage.getItem('shadowGateProjects')) || [];
+    return projects.find(p => p.id === projectId);
+}
 
-        updateDashboard();
-    } catch (error) {
-        console.error('Error loading project:', error);
-        showAlert('Failed to load project', 'danger');
-        redirectToHome();
+function updateProjectUI(project) {
+    // Informações básicas
+    document.getElementById('gateName').textContent = project.name;
+    document.getElementById('gateId').textContent = project.id;
+    document.getElementById('gateCreated').textContent = formatDate(project.createdAt);
+    document.getElementById('apiEndpoint').textContent = `${window.location.origin}/api/${project.id}`;
+    document.getElementById('spreadsheetUrl').textContent = project.url;
+    
+    // Estatísticas
+    document.getElementById('dailyRequests').textContent = project.requestsToday || 0;
+    document.getElementById('gateLevel').textContent = project.level || 1;
+    
+    // Barra de progresso
+    updateLevelProgress(project);
+    
+    // Status do gate
+    updateGateStatus(project);
+}
+
+function updateLevelProgress(project) {
+    const currentLevel = project.level || 1;
+    const requestsNeeded = currentLevel * 100;
+    const progress = ((project.totalRequests || 0) % 100) / 100 * 100;
+    
+    document.getElementById('levelProgressBar').style.width = `${progress}%`;
+    document.getElementById('requestsToNextLevel').textContent = 
+        Math.max(0, requestsNeeded - (project.totalRequests || 0));
+    
+    // Atualizar barra de requests diários
+    const dailyProgress = Math.min(100, (project.requestsToday || 0) / 10);
+    document.querySelector('.gate-card:nth-child(2) .h-1.bg-blue-500').style.width = `${dailyProgress}%`;
+}
+
+function updateGateStatus(project) {
+    const statusElement = document.getElementById('gateStatus');
+    if (project.status === 'active') {
+        statusElement.innerHTML = '<i class="bi bi-check-circle-fill mr-2"></i> ACTIVE';
+        statusElement.className = 'text-xl font-bold text-green-400 flex items-center';
+    } else {
+        statusElement.innerHTML = '<i class="bi bi-exclamation-circle-fill mr-2"></i> INACTIVE';
+        statusElement.className = 'text-xl font-bold text-yellow-400 flex items-center';
     }
 }
 
-// Atualizar dashboard
-function updateDashboard() {
-    // Informações básicas
-    document.getElementById('gateName').textContent = currentProject.name;
-    document.getElementById('gateId').textContent = currentProject.id;
-    document.getElementById('gateCreated').textContent = formatDate(currentProject.createdAt);
-    
-    // Estatísticas
-    document.getElementById('dailyRequests').textContent = currentProject.requestsToday;
-    document.getElementById('gateLevel').textContent = currentProject.level;
-    
-    // URLs
-    const baseUrl = window.location.origin;
-    document.getElementById('apiEndpoint').textContent = `${baseUrl}/${currentProject.id}`;
-    document.getElementById('directEndpoint').textContent = `${baseUrl}/${currentProject.id}`;
-    document.getElementById('spreadsheetUrl').textContent = currentProject.url;
-    
-    // Atualizar snippets de código
-    document.querySelectorAll('.project-id-placeholder').forEach(el => {
-        el.textContent = currentProject.id;
-    });
-    
-    // Status
-    updateStatus();
-    // Gráfico
-    initChart();
-    // Barras de progresso
-    updateProgress();
+function formatDate(dateString) {
+    const options = { year: 'numeric', month: 'short', day: 'numeric' };
+    return new Date(dateString).toLocaleDateString('en-US', options);
 }
 
-// Inicializar gráfico
-function initChart() {
+function initUsageChart(project) {
     const ctx = document.getElementById('usageChart').getContext('2d');
-    const data = currentProject.activityData?.['7d'] || generateRandomData(10, 50, 7);
+    const activityData = project.activityData || {
+        '7d': generateRandomData(5, 20),
+        '30d': generateRandomData(5, 50),
+        '90d': generateRandomData(5, 100)
+    };
     
-    usageChart = new Chart(ctx, {
+    window.currentChart = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: data.map((_, i) => `Day ${i+1}`),
+            labels: Array.from({length: 7}, (_, i) => `Day ${i+1}`),
             datasets: [{
                 label: 'Requests',
-                data: data,
+                data: activityData['7d'],
                 backgroundColor: 'rgba(58, 107, 255, 0.2)',
                 borderColor: 'rgba(58, 107, 255, 1)',
                 borderWidth: 2,
@@ -88,101 +111,142 @@ function initChart() {
                 fill: true
             }]
         },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-                x: { grid: { color: 'rgba(255, 255, 255, 0.1)' }, ticks: { color: '#94a3b8' } },
-                y: { beginAtZero: true, grid: { color: 'rgba(255, 255, 255, 0.1)' }, ticks: { color: '#94a3b8' } }
-            }
-        }
+        options: getChartOptions()
     });
 }
 
-// Configurar UI
-function setupUI() {
-    setupTabs();
-    setupCopyButtons();
-    setupTimeframeButtons();
+function generateRandomData(min, max) {
+    return Array.from({length: max}, () => 
+        Math.floor(Math.random() * (max - min + 1)) + min
+    );
 }
 
-// Configurar event listeners
-function setupEventListeners() {
-    document.getElementById('backButton').addEventListener('click', redirectToHome);
+function getChartOptions() {
+    return {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { display: false },
+            tooltip: {
+                backgroundColor: '#1E293B',
+                titleColor: '#E2E8F0',
+                bodyColor: '#CBD5E1',
+                borderColor: '#334155',
+                borderWidth: 1,
+                padding: 12,
+                usePointStyle: true
+            }
+        },
+        scales: {
+            x: {
+                grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                ticks: { color: '#94a3b8' }
+            },
+            y: {
+                beginAtZero: true,
+                grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                ticks: { color: '#94a3b8' }
+            }
+        }
+    };
+}
+
+function setupTabs() {
+    const tabLinks = document.querySelectorAll('.tab-link');
     
-    // Botão de simular requisição
-    const simulateBtn = document.createElement('button');
-    simulateBtn.textContent = 'Simulate Request';
-    simulateBtn.className = 'text-xs bg-blue-900 text-blue-300 px-2 py-1 rounded mt-2 hover:bg-blue-800';
-    simulateBtn.addEventListener('click', simulateRequest);
-    document.querySelector('.gate-card').appendChild(simulateBtn);
-}
-
-// Função para simular requisição
-async function simulateRequest() {
-    try {
-        // Atualizar localmente
-        currentProject.requestsToday++;
-        currentProject.totalRequests++;
-        
-        // Verificar se subiu de nível
-        const neededForNextLevel = currentProject.level * 100;
-        if (currentProject.totalRequests >= neededForNextLevel) {
-            currentProject.level++;
-            showAlert(`Gate leveled up to level ${currentProject.level}!`, 'success');
-        }
-        
-        // Atualizar localStorage
-        const projects = JSON.parse(localStorage.getItem('shadowGateProjects')) || [];
-        const index = projects.findIndex(p => p.id === currentProject.id);
-        if (index !== -1) {
-            projects[index] = currentProject;
-            localStorage.setItem('shadowGateProjects', JSON.stringify(projects));
+    tabLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
             
-            // Notificar Service Worker
-            if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-                navigator.serviceWorker.controller.postMessage({
-                    type: 'UPDATE_PROJECT',
-                    project: currentProject
-                });
-            }
-        }
-        
-        updateDashboard();
-    } catch (error) {
-        console.error('Error simulating request:', error);
-        showAlert('Error simulating request', 'danger');
-    }
-}
-
-// ... (outras funções auxiliares)
-
-// Helper functions
-function getProjectIdFromUrl() {
-    return new URLSearchParams(window.location.search).get('project');
-}
-
-function formatDate(dateString) {
-    return new Date(dateString).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
+            tabLinks.forEach(tab => {
+                tab.classList.remove('border-blue-400', 'text-blue-400');
+                tab.classList.add('border-transparent', 'text-gray-400');
+            });
+            
+            this.classList.add('border-blue-400', 'text-blue-400');
+            this.classList.remove('border-transparent', 'text-gray-400');
+            
+            const tabId = this.getAttribute('data-tab');
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(tabId).classList.add('active');
+        });
     });
 }
 
-function redirectToHome() {
-    window.location.href = 'home.html';
+function setupCopyButtons() {
+    document.querySelectorAll('.copy-button').forEach(button => {
+        button.addEventListener('click', function() {
+            const text = this.previousElementSibling.textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                const icon = this.innerHTML;
+                this.innerHTML = '<i class="bi bi-check2 text-green-400"></i>';
+                setTimeout(() => {
+                    this.innerHTML = icon;
+                }, 2000);
+            });
+        });
+    });
 }
 
-function generateRandomData(min, max, length) {
-    return Array.from({length}, () => Math.floor(Math.random() * (max - min + 1)) + min);
+function setupTimeframeButtons() {
+    document.querySelectorAll('.timeframe-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.timeframe-btn').forEach(b => {
+                b.classList.remove('active', 'text-white');
+                b.classList.add('text-gray-400');
+            });
+            this.classList.add('active', 'text-white');
+            this.classList.remove('text-gray-400');
+            
+            updateChart(this.getAttribute('data-days'));
+        });
+    });
+}
+
+function updateChart(days) {
+    const project = loadProject(getProjectIdFromUrl());
+    const activityData = project.activityData || {
+        '7d': generateRandomData(5, 20),
+        '30d': generateRandomData(5, 50),
+        '90d': generateRandomData(5, 100)
+    };
+    
+    const chart = window.currentChart;
+    const daysKey = days + 'd';
+    
+    chart.data.labels = Array.from({length: days}, (_, i) => `Day ${i+1}`);
+    chart.data.datasets[0].data = activityData[daysKey] || generateRandomData(5, days * 10);
+    chart.update();
+}
+
+function simulateRequest() {
+    const projectId = getProjectIdFromUrl();
+    let projects = JSON.parse(localStorage.getItem('shadowGateProjects')) || [];
+    const projectIndex = projects.findIndex(p => p.id === projectId);
+    
+    if (projectIndex >= 0) {
+        projects[projectIndex].requestsToday = (projects[projectIndex].requestsToday || 0) + 1;
+        projects[projectIndex].totalRequests = (projects[projectIndex].totalRequests || 0) + 1;
+        
+        const currentLevel = projects[projectIndex].level || 1;
+        if (projects[projectIndex].totalRequests >= currentLevel * 100) {
+            projects[projectIndex].level = currentLevel + 1;
+            showAlert(`Gate leveled up to level ${currentLevel + 1}!`, 'success');
+        }
+        
+        localStorage.setItem('shadowGateProjects', JSON.stringify(projects));
+        updateProjectUI(projects[projectIndex]);
+    }
 }
 
 function showAlert(message, type) {
     const alert = document.createElement('div');
     alert.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg text-white font-semibold tracking-wider z-50 ${
-        type === 'success' ? 'bg-green-600' : 'bg-red-600'
+        type === 'success' ? 'bg-green-600' : 
+        type === 'danger' ? 'bg-red-600' :
+        'bg-blue-600'
     }`;
     alert.textContent = message;
     document.body.appendChild(alert);
